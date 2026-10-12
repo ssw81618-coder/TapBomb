@@ -154,3 +154,185 @@
       animation: screen-shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
     }
     @keyframes screen-shake {
+      10%, 90% { transform: translate3d(-3px, 0, 0); }
+      20%, 80% { transform: translate3d(5px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+      40%, 60% { transform: translate3d(6px, 0, 0); }
+    }
+  </style>
+</head>
+<body id="game-body">
+
+  <div class="header">
+    <div class="title">Sip or Boom</div>
+    <div class="status" id="status-text">Take turns tapping. Avoid the bomb!</div>
+  </div>
+
+  <div class="controls">
+    <div class="control-row">
+      <span class="control-label">Grid</span>
+      <div class="btn-group" id="size-options">
+        <button class="option-btn" data-size="3">3x3</button>
+        <button class="option-btn active" data-size="4">4x4</button>
+        <button class="option-btn" data-size="5">5x5</button>
+      </div>
+    </div>
+    <div class="control-row">
+      <span class="control-label">Bombs</span>
+      <div class="btn-group" id="bomb-options">
+        <button class="option-btn active" data-bombs="1">1</button>
+        <button class="option-btn" data-bombs="2">2</button>
+        <button class="option-btn" data-bombs="3">3</button>
+        <button class="option-btn" data-bombs="4">4</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-container">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="footer">
+    <button class="btn-reset" id="btn-restart">Restart Game</button>
+  </div>
+
+  <script>
+    let gridSize = 4;
+    let bombCount = 1;
+    let bombs = new Set();
+    let isGameOver = false;
+    let audioCtx = null;
+
+    function playSound(isBomb) {
+      try {
+        if (!audioCtx) {
+          const AudioClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioClass) audioCtx = new AudioClass();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        if (!audioCtx) return;
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        if (isBomb) {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(90, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.6);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.6);
+        } else {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(580, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.12);
+        }
+      } catch (e) {}
+    }
+
+    function initGame() {
+      const grid = document.getElementById('grid');
+      const statusText = document.getElementById('status-text');
+      const body = document.getElementById('game-body');
+
+      grid.innerHTML = '';
+      body.classList.remove('shake');
+      isGameOver = false;
+      statusText.innerText = 'Take turns tapping. Avoid the bomb!';
+      statusText.style.color = '#94a3b8';
+
+      const totalCells = gridSize * gridSize;
+      grid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+      grid.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+
+      // 產生隨機炸彈
+      bombs.clear();
+      const actualBombs = Math.min(bombCount, totalCells - 1);
+      while (bombs.size < actualBombs) {
+        bombs.add(Math.floor(Math.random() * totalCells));
+      }
+
+      // 生成方格
+      for (let i = 0; i < totalCells; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.index = i;
+        cell.addEventListener('click', () => handleClick(cell, i));
+        grid.appendChild(cell);
+      }
+    }
+
+    function handleClick(cell, index) {
+      if (isGameOver || cell.classList.contains('revealed')) return;
+
+      cell.classList.add('revealed');
+
+      if (bombs.has(index)) {
+        isGameOver = true;
+        cell.classList.add('bomb');
+        cell.innerText = '💥';
+
+        // 揭露其餘炸彈
+        document.querySelectorAll('.cell').forEach(c => {
+          const idx = Number(c.dataset.index);
+          if (bombs.has(idx) && !c.classList.contains('bomb')) {
+            c.classList.add('bomb');
+            c.innerText = '💣';
+          }
+        });
+
+        const statusText = document.getElementById('status-text');
+        statusText.innerText = '💥 BOOM! Drink up!';
+        statusText.style.color = '#ef4444';
+
+        document.getElementById('game-body').classList.add('shake');
+        if (navigator.vibrate) navigator.vibrate([250, 100, 400]);
+
+        playSound(true);
+      } else {
+        cell.classList.add('safe');
+        cell.innerText = '🛡️';
+
+        const statusText = document.getElementById('status-text');
+        statusText.innerText = 'Safe! Next player...';
+        statusText.style.color = '#10b981';
+
+        playSound(false);
+      }
+    }
+
+    // 綁定控制列按鈕事件
+    document.querySelectorAll('#size-options .option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#size-options .option-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        gridSize = Number(btn.dataset.size);
+        initGame();
+      });
+    });
+
+    document.querySelectorAll('#bomb-options .option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#bomb-options .option-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        bombCount = Number(btn.dataset.bombs);
+        initGame();
+      });
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', initGame);
+
+    // 啟動初局
+    initGame();
+  </script>
+</body>
+</html>
