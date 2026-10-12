@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Sip or Boom</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .status {
+      margin-top: 6px;
+      font-size: 1.05rem;
+      color: #94a3b8;
+      font-weight: 600;
+      min-height: 1.5em;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 360px;
+      margin-bottom: 16px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1e293b;
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+    .control-label {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 6px;
+    }
+    .option-btn {
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+    .option-btn.active {
+      background: #3b82f6;
+      border-color: #60a5fa;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+    }
+
+    .grid-container {
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .grid {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+    }
+    .cell {
+      background: linear-gradient(145deg, #1e293b, #334155);
+      border-radius: 10px;
+      border: 2px solid #475569;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      cursor: pointer;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+      transition: transform 0.08s ease, background-color 0.2s ease, border-color 0.2s ease;
+      touch-action: manipulation;
+    }
+    .cell:active:not(.revealed) {
+      transform: scale(0.94);
+    }
+    .cell.safe {
+      background: #10b981;
+      border-color: #34d399;
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.4);
+      cursor: default;
+    }
+    .cell.bomb {
+      background: #ef4444;
+      border-color: #f87171;
+      box-shadow: 0 0 25px #ef4444;
+      animation: explode-pulse 0.35s infinite alternate;
+      cursor: default;
+    }
+
+    .footer {
+      margin-top: 18px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .btn-reset {
+      width: 100%;
+      padding: 13px 0;
+      border: none;
+      border-radius: 10px;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+      transition: opacity 0.2s;
+      touch-action: manipulation;
+    }
+    .btn-reset:active {
+      opacity: 0.8;
+    }
+
+    .shake {
+      animation: screen-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes screen-shake {
+      10%, 90% { transform: translate3d(-4px, 0, 0); }
+      20%, 80% { transform: translate3d(6px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+      40%, 60% { transform: translate3d(8px, 0, 0); }
+    }
+    @keyframes explode-pulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.08); }
+    }
+  </style>
+</head>
+<body id="game-body">
+
+  <div class="header">
+    <div class="title">Sip or Boom</div>
+    <div class="status" id="status-text">Take turns tapping. Avoid the bomb!</div>
+  </div>
+
+  <div class="controls">
+    <div class="control-row">
+      <span class="control-label">Grid</span>
+      <div class="btn-group" id="size-options">
+        <button class="option-btn" type="button" onclick="setSize(3)">3x3</button>
+        <button class="option-btn active" type="button" onclick="setSize(4)">4x4</button>
+        <button class="option-btn" type="button" onclick="setSize(5)">5x5</button>
+      </div>
+    </div>
+    <div class="control-row">
+      <span class="control-label">Bombs</span>
+      <div class="btn-group" id="bomb-options">
+        <button class="option-btn active" type="button" onclick="setBombs(1)">1</button>
+        <button class="option-btn" type="button" onclick="setBombs(2)">2</button>
+        <button class="option-btn" type="button" onclick="setBombs(3)">3</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-container">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="footer">
+    <button class="btn-reset" type="button" onclick="initGame()">Restart Game</button>
+  </div>
+
+  <script>
+    let gridSize = 4;
+    let bombCount = 1;
+    let bombs = new Set();
+    let isGameOver = false;
+    let audio
